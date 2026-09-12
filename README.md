@@ -3,7 +3,7 @@
 > **"Your device should not only know what it can do. It should learn how you need it to perform."**  
 > **YOUR iQOO LEARNS HOW YOU PLAY.**
 
-Built for the **iQOO Hackathon 2026 (Hyderabad Battle)**.
+Built for the **iQOO Hackathon 2026 (Hyderabad Battle)** by **[ashwithdodda-code](https://github.com/ashwithdodda-code)**.
 
 ---
 
