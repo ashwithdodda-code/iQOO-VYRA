@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Launch iQOO VYRA in Chrome",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch iQOO Device Bridge",
+      "program": "${workspaceFolder}/scripts/iqoo-device-bridge.cjs",
+      "console": "integratedTerminal"
+    }
+  ]
+}

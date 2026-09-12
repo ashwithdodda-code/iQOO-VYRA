@@ -1,0 +1,141 @@
+import { DemoScenario, DemoScenarioId } from '../types';
+
+export const DEMO_SCENARIOS: Record<DemoScenarioId, DemoScenario> = {
+  NORMAL_GAMING: {
+    id: 'NORMAL_GAMING',
+    label: 'NORMAL GAMING',
+    tagline: 'Healthy baseline load',
+    workload: 'CASUAL',
+    initialTelemetry: {
+      thermalTemp: 34.2,
+      thermalRateOfRise: 0.05,
+      fpsStability: 99.4,
+      frameTimeVariance: 2.1,
+      fps: 59.8,
+      batteryLevel: 82,
+      networkStability: 'HIGH',
+      cpuUsage: 38,
+      gpuUsage: 42,
+      memoryUsage: 48,
+    },
+    targetStrategy: 'BALANCED_PERFORMANCE',
+    description:
+      'Standard casual gaming load with minimal thermal slope. Demonstrates VYRA remaining non-intrusive when device metrics reside in the optimal zone.',
+    expectedOutcome: 'Zero aggressive throttling; smooth balanced power pacing.',
+  },
+
+  LONG_COMPETITIVE: {
+    id: 'LONG_COMPETITIVE',
+    label: 'LONG COMPETITIVE SESSION',
+    tagline: 'Cumulative heat soak (28 min)',
+    workload: 'COMPETITIVE',
+    initialTelemetry: {
+      thermalTemp: 37.1,
+      thermalRateOfRise: 0.28,
+      fpsStability: 96.8,
+      frameTimeVariance: 4.6,
+      fps: 58.5,
+      batteryLevel: 54,
+      networkStability: 'HIGH',
+      cpuUsage: 76,
+      gpuUsage: 86,
+      memoryUsage: 68,
+    },
+    targetStrategy: 'STABILITY_FIRST',
+    description:
+      'Extended gaming session where cumulative heat creates an early warning pattern. VYRA initiates preemptive micro-pacing 2 minutes before jitter.',
+    expectedOutcome: 'Frame time variance curtailed by 32%; locked 60 FPS VRR presentation.',
+  },
+
+  THERMAL_RISE: {
+    id: 'THERMAL_RISE',
+    label: 'THERMAL RISE',
+    tagline: 'Extended competitive heat accumulation',
+    workload: 'COMPETITIVE',
+    initialTelemetry: {
+      thermalTemp: 35.6,
+      thermalRateOfRise: 0.22,
+      fpsStability: 99.0,
+      frameTimeVariance: 1.4,
+      fps: 60.0,
+      batteryLevel: 70,
+      networkStability: 'HIGH',
+      cpuUsage: 68,
+      gpuUsage: 76,
+      memoryUsage: 58,
+    },
+    targetStrategy: 'STABILITY_FIRST',
+    description:
+      'Starts at optimal baseline (35.6°C, 99% FPS stability, 70% battery). Cumulative heat causes steady thermal climb (35.6°C → 38.7°C) and stability degradation before VYRA intervenes.',
+    expectedOutcome: 'Preemptive frame pacing prevents jitter; drops from 91% back to 97% stability at 38.3°C.',
+  },
+
+  NETWORK_INSTABILITY: {
+    id: 'NETWORK_INSTABILITY',
+    label: 'NETWORK INSTABILITY',
+    tagline: 'Socket variance & packet jitter',
+    workload: 'COMPETITIVE',
+    initialTelemetry: {
+      thermalTemp: 35.6,
+      thermalRateOfRise: 0.14,
+      fpsStability: 98.2,
+      frameTimeVariance: 3.1,
+      fps: 59.2,
+      batteryLevel: 68,
+      networkStability: 'LOW',
+      cpuUsage: 68,
+      gpuUsage: 74,
+      memoryUsage: 58,
+    },
+    targetStrategy: 'NETWORK_PRIORITY',
+    description:
+      'Unstable upstream connection causing socket backlog. Demonstrates network-aware optimization prioritizing competitive game packets.',
+    expectedOutcome: 'Socket queues stabilized; packet latency normalized within 60s.',
+  },
+
+  LOW_BATTERY: {
+    id: 'LOW_BATTERY',
+    label: 'LOW BATTERY',
+    tagline: 'Discharge velocity hazard (16% remaining)',
+    workload: 'COMPETITIVE',
+    initialTelemetry: {
+      thermalTemp: 36.4,
+      thermalRateOfRise: 0.19,
+      fpsStability: 96.0,
+      frameTimeVariance: 4.0,
+      fps: 58.0,
+      batteryLevel: 16,
+      networkStability: 'HIGH',
+      cpuUsage: 72,
+      gpuUsage: 78,
+      memoryUsage: 64,
+    },
+    targetStrategy: 'BATTERY_EFFICIENCY',
+    description:
+      'Depleted battery under high compute load. Demonstrates intelligent background compute suspension to stretch remaining session runtime without stutter.',
+    expectedOutcome: 'Discharge velocity reduced by 28%; session duration safely extended.',
+  },
+
+  PERFORMANCE_DEGRADATION: {
+    id: 'PERFORMANCE_DEGRADATION',
+    label: 'PERFORMANCE DEGRADATION',
+    tagline: 'Command queue saturation & micro-stutter',
+    workload: 'COMPETITIVE',
+    initialTelemetry: {
+      thermalTemp: 38.6,
+      thermalRateOfRise: 0.36,
+      fpsStability: 91.5,
+      frameTimeVariance: 8.2,
+      fps: 55.2,
+      batteryLevel: 42,
+      networkStability: 'MEDIUM',
+      cpuUsage: 88,
+      gpuUsage: 94,
+      memoryUsage: 76,
+    },
+    targetStrategy: 'STABILITY_FIRST',
+    description:
+      'Severe frame-time variance spike and GPU saturation. Demonstrates rapid micro-cadence intervention and scheduler governor modulation.',
+    expectedOutcome: 'Frame variance reduced from 8.2ms to 3.4ms; stability restored to 98%.',
+  },
+};
