@@ -101,69 +101,64 @@ function detectDevice() {
   });
 }
 
-// Poll real telemetry from ADB device
+// Poll real telemetry from ADB device safely without overloading phone
+let isPolling = false;
+
 function pollAdbTelemetry() {
+  if (isPolling) return; // Prevent concurrent calls
   if (!connectedDevice) {
     detectDevice();
     return;
   }
 
+  isPolling = true;
   const serial = connectedDevice.serial;
 
-  // 1. Battery & Temperature (dumpsys battery)
-  exec(`${ADB} -s ${serial} shell dumpsys battery`, (err, stdout) => {
-    if (!err && stdout) {
-      const levelMatch = stdout.match(/level:\s*(\d+)/);
-      if (levelMatch) lastTelemetry.batteryLevel = parseInt(levelMatch[1], 10);
+  // Single fast command: dumpsys battery + /proc/meminfo (no heavy top or dumpsys meminfo)
+  const cmd = `${ADB} -s ${serial} shell "dumpsys battery; cat /proc/meminfo | head -n 3"`;
 
-      const tempMatch = stdout.match(/temperature:\s*(\d+)/);
-      if (tempMatch) {
-        // Temperature is in tenths of degree Celsius (e.g. 365 = 36.5°C)
-        const realTemp = parseInt(tempMatch[1], 10) / 10.0;
-        const prevTemp = lastTelemetry.thermalTemp;
-        lastTelemetry.thermalTemp = realTemp;
-        lastTelemetry.thermalRateOfRise = Math.round((realTemp - prevTemp) * 60 * 10) / 10;
-      }
+  exec(cmd, { timeout: 2000 }, (err, stdout) => {
+    isPolling = false;
+    if (err || !stdout) return;
 
-      const voltMatch = stdout.match(/voltage:\s*(\d+)/);
-      if (voltMatch) lastTelemetry.batteryVoltage = parseInt(voltMatch[1], 10);
+    // 1. Battery & Temperature
+    const levelMatch = stdout.match(/level:\s*(\d+)/);
+    if (levelMatch) lastTelemetry.batteryLevel = parseInt(levelMatch[1], 10);
 
-      const statusMatch = stdout.match(/status:\s*(\d+)/);
-      if (statusMatch) {
-        const s = parseInt(statusMatch[1], 10);
-        lastTelemetry.batteryStatus = s === 2 ? 'Charging' : s === 3 ? 'Discharging' : s === 5 ? 'Full' : 'Discharging';
+    const tempMatch = stdout.match(/temperature:\s*(\d+)/);
+    if (tempMatch) {
+      const realTemp = parseInt(tempMatch[1], 10) / 10.0;
+      const prevTemp = lastTelemetry.thermalTemp;
+      lastTelemetry.thermalTemp = realTemp;
+      lastTelemetry.thermalRateOfRise = Math.round((realTemp - prevTemp) * 60 * 10) / 10;
+    }
+
+    const voltMatch = stdout.match(/voltage:\s*(\d+)/);
+    if (voltMatch) lastTelemetry.batteryVoltage = parseInt(voltMatch[1], 10);
+
+    const statusMatch = stdout.match(/status:\s*(\d+)/);
+    if (statusMatch) {
+      const s = parseInt(statusMatch[1], 10);
+      lastTelemetry.batteryStatus = s === 2 ? 'Charging' : s === 3 ? 'Discharging' : s === 5 ? 'Full' : 'Discharging';
+    }
+
+    // 2. RAM info via zero-impact kernel procfs
+    const totalMatch = stdout.match(/MemTotal:\s*(\d+)/);
+    const availMatch = stdout.match(/MemAvailable:\s*(\d+)/);
+    if (totalMatch && availMatch) {
+      const total = parseInt(totalMatch[1], 10);
+      const avail = parseInt(availMatch[1], 10);
+      if (total > 0) {
+        lastTelemetry.memoryUsage = Math.min(95, Math.max(25, Math.round(((total - avail) / total) * 100)));
       }
     }
-  });
 
-  // 2. CPU & Memory usage (top -n 1)
-  exec(`${ADB} -s ${serial} shell "top -n 1 -m 3"`, (err, stdout) => {
-    if (!err && stdout) {
-      const cpuMatch = stdout.match(/(\d+)%\s*cpu/i) || stdout.match(/User\s+(\d+)%/i);
-      if (cpuMatch) {
-        lastTelemetry.cpuUsage = Math.min(100, Math.max(10, parseInt(cpuMatch[1], 10)));
-      }
-    }
+    lastTelemetry.timestamp = Date.now();
   });
-
-  // 3. RAM info (dumpsys meminfo)
-  exec(`${ADB} -s ${serial} shell "dumpsys meminfo | grep 'Used RAM:'"`, (err, stdout) => {
-    if (!err && stdout) {
-      const match = stdout.match(/Used RAM:\s*([\d,]+)\s*K/i);
-      if (match) {
-        const usedKb = parseInt(match[1].replace(/,/g, ''), 10);
-        // Estimate % based on typical 12GB/16GB iQOO RAM
-        const ramPct = Math.min(95, Math.max(30, Math.round((usedKb / (12 * 1024 * 1024)) * 100)));
-        lastTelemetry.memoryUsage = ramPct;
-      }
-    }
-  });
-
-  lastTelemetry.timestamp = Date.now();
 }
 
-// Start polling loop
-setInterval(pollAdbTelemetry, 1000);
+// Start polling loop at relaxed 3000ms interval
+setInterval(pollAdbTelemetry, 3000);
 detectDevice();
 
 // Create HTTP & SSE / JSON streaming server
