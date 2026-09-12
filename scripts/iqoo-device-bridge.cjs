@@ -16,7 +16,7 @@
 const http = require('http');
 const { exec, execSync } = require('child_process');
 
-const PORT = process.env.BRIDGE_PORT || 5174;
+const PORT = process.env.BRIDGE_PORT || 8765;
 
 let connectedDevice = null;
 let lastTelemetry = {
