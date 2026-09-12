@@ -3,7 +3,7 @@ import { Telemetry, InputTelemetry, NetworkStability } from '../types';
 export interface LiveDeviceStatus {
   isLiveDeviceActive: boolean;
   deviceModel: string;
-  source: 'ADB_KERNEL_BRIDGE' | 'DEVICE_WEB_SENSORS' | 'SIMULATION';
+  source: 'ADB_KERNEL_BRIDGE' | 'DEVICE_WEB_SENSORS' | 'PHONE_WIRELESS_SYNC' | 'SIMULATION';
   batteryConnected: boolean;
   batteryLevel: number;
   batteryCharging: boolean;
@@ -14,12 +14,16 @@ export interface LiveDeviceStatus {
   networkType: string;
   touchSampleRate: number;
   inputJitter: number;
+  isMobileTransmitter?: boolean;
+  phoneLinked?: boolean;
 }
 
 class LiveDeviceSensorManager {
   private isLiveActive: boolean = false;
   private deviceModel: string = 'iQOO Device';
-  private source: 'ADB_KERNEL_BRIDGE' | 'DEVICE_WEB_SENSORS' | 'SIMULATION' = 'SIMULATION';
+  private source: 'ADB_KERNEL_BRIDGE' | 'DEVICE_WEB_SENSORS' | 'PHONE_WIRELESS_SYNC' | 'SIMULATION' = 'SIMULATION';
+  private phoneLinked: boolean = false;
+  private isMobile: boolean = false;
   
   // Real sensor state
   private batteryLevel: number = 80;
@@ -43,14 +47,22 @@ class LiveDeviceSensorManager {
   // Touch timing
   private touchTimestamps: number[] = [];
 
-  // Bridge poll timer
+  // Polling / broadcast timers
   private bridgeTimer: ReturnType<typeof setInterval> | null = null;
-  private listeners: ((telemetry: Telemetry, status: LiveDeviceStatus) => void)[] = [];
+  private broadcastTimer: ReturnType<typeof setInterval> | null = null;
+  private syncTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
+    this.detectClientType();
     this.detectDeviceModel();
     this.initWebSensors();
-    this.checkAdbBridge();
+    this.initSyncSystem();
+  }
+
+  private detectClientType() {
+    if (typeof navigator === 'undefined') return;
+    const ua = navigator.userAgent || '';
+    this.isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (typeof window !== 'undefined' && 'ontouchstart' in window);
   }
 
   private detectDeviceModel() {
@@ -60,9 +72,9 @@ class LiveDeviceSensorManager {
       const match = ua.match(/iQOO\s*([A-Za-z0-9\s]+)/i);
       this.deviceModel = match ? `iQOO ${match[1].trim()}` : 'iQOO Smartphone';
     } else if (/vivo/i.test(ua)) {
-      this.deviceModel = 'iQOO / Vivo Device';
+      this.deviceModel = 'iQOO / Vivo Smartphone';
     } else if (/Android/i.test(ua)) {
-      this.deviceModel = 'iQOO (OriginOS Android)';
+      this.deviceModel = 'iQOO Mobile (OriginOS/Android)';
     } else {
       this.deviceModel = 'iQOO 12 (Snapdragon 8 Gen 3)';
     }
@@ -149,10 +161,93 @@ class LiveDeviceSensorManager {
     }
   }
 
+  // Wireless Phone <-> Laptop Sync and ADB Fallback
+  private initSyncSystem() {
+    if (typeof window === 'undefined') return;
+
+    if (this.isMobile) {
+      // MOBILE DEVICE: Broadcast hardware sensors to laptop dashboard
+      this.source = 'DEVICE_WEB_SENSORS';
+      this.broadcastTimer = setInterval(() => this.broadcastPhoneTelemetry(), 750);
+      this.broadcastPhoneTelemetry();
+    } else {
+      // LAPTOP / DESKTOP: Poll for live mobile phone connection
+      this.syncTimer = setInterval(() => this.checkPhoneSync(), 800);
+      this.checkPhoneSync();
+      this.checkAdbBridge();
+    }
+  }
+
+  // Transmit real phone sensors over LAN
+  private async broadcastPhoneTelemetry() {
+    try {
+      const payload = {
+        deviceModel: this.deviceModel,
+        batteryLevel: this.batteryLevel,
+        batteryCharging: this.batteryCharging,
+        batteryVoltage: this.batteryVoltage,
+        realFps: this.realFps,
+        frameTimeVariance: this.frameTimeVariance,
+        touchSampleRate: this.touchSampleRate,
+        inputJitter: this.inputJitter,
+        touchStability: this.touchStability,
+        networkLatency: this.networkLatency,
+        networkType: this.networkType,
+        networkStability: this.networkStability,
+        timestamp: Date.now(),
+      };
+
+      await fetch('/api/sync-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(1000),
+      });
+    } catch {}
+  }
+
+  // Check if a live phone is broadcasting
+  private async checkPhoneSync() {
+    try {
+      const res = await fetch('/api/sync-phone', { signal: AbortSignal.timeout(800) });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.connected && data.telemetry) {
+          const t = data.telemetry;
+          this.phoneLinked = true;
+          this.source = 'PHONE_WIRELESS_SYNC';
+          this.deviceModel = t.deviceModel || 'iQOO Phone';
+          this.batteryLevel = t.batteryLevel ?? this.batteryLevel;
+          this.batteryCharging = Boolean(t.batteryCharging);
+          this.batteryVoltage = t.batteryVoltage ?? this.batteryVoltage;
+          this.realFps = t.realFps ?? this.realFps;
+          this.frameTimeVariance = t.frameTimeVariance ?? this.frameTimeVariance;
+          this.touchSampleRate = t.touchSampleRate ?? this.touchSampleRate;
+          this.inputJitter = t.inputJitter ?? this.inputJitter;
+          this.touchStability = t.touchStability ?? this.touchStability;
+          this.networkLatency = t.networkLatency ?? this.networkLatency;
+          this.networkType = t.networkType ?? this.networkType;
+          this.networkStability = t.networkStability ?? this.networkStability;
+          
+          // Auto-enable live mode when phone connects
+          if (!this.isLiveActive) {
+            this.isLiveActive = true;
+          }
+          return;
+        }
+      }
+    } catch {}
+
+    this.phoneLinked = false;
+    if (this.source === 'PHONE_WIRELESS_SYNC' && !this.isMobile) {
+      this.source = 'SIMULATION';
+    }
+  }
+
   // Poll local ADB bridge service if available
   private async checkAdbBridge() {
     try {
-      const res = await fetch('http://localhost:5174/api/iqoo-device', { signal: AbortSignal.timeout(1200) });
+      const res = await fetch('http://localhost:8765/api/iqoo-device', { signal: AbortSignal.timeout(800) });
       if (res.ok) {
         const data = await res.json();
         if (data.connected && data.telemetry) {
@@ -161,27 +256,17 @@ class LiveDeviceSensorManager {
           this.batteryLevel = data.telemetry.batteryLevel || this.batteryLevel;
           this.batteryVoltage = data.telemetry.batteryVoltage || this.batteryVoltage;
           this.memoryUsage = data.telemetry.memoryUsage || this.memoryUsage;
-        } else {
-          if (this.isLiveActive) this.source = 'DEVICE_WEB_SENSORS';
         }
       }
-    } catch {
-      if (this.isLiveActive) this.source = 'DEVICE_WEB_SENSORS';
-    }
+    } catch {}
   }
 
   public setLiveActive(active: boolean) {
     this.isLiveActive = active;
     if (active) {
+      this.checkPhoneSync();
       this.checkAdbBridge();
-      if (!this.bridgeTimer) {
-        this.bridgeTimer = setInterval(() => this.checkAdbBridge(), 3000);
-      }
     } else {
-      if (this.bridgeTimer) {
-        clearInterval(this.bridgeTimer);
-        this.bridgeTimer = null;
-      }
       this.source = 'SIMULATION';
     }
   }
@@ -205,6 +290,8 @@ class LiveDeviceSensorManager {
       networkType: this.networkType,
       touchSampleRate: this.touchSampleRate,
       inputJitter: this.inputJitter,
+      isMobileTransmitter: this.isMobile,
+      phoneLinked: this.phoneLinked,
     };
   }
 

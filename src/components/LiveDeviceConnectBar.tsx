@@ -77,7 +77,7 @@ export function LiveDeviceConnectBar() {
 
       {/* Live Device Telemetry HUD when Active */}
       {isLive && deviceStatus && (
-        <div className="p-3 rounded-lg bg-black/80 border border-emerald-900/60 space-y-2 animate-fade-in">
+        <div className="p-3 rounded-lg bg-black/80 border border-emerald-900/60 space-y-2.5 animate-fade-in">
           <div className="flex items-center justify-between border-b border-neutral-800 pb-1.5">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -86,9 +86,36 @@ export function LiveDeviceConnectBar() {
               </span>
             </div>
             <span className="text-[8px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold">
-              {deviceStatus.source === 'ADB_KERNEL_BRIDGE' ? 'ADB KERNEL BRIDGE' : 'DIRECT WEB SENSORS'}
+              {deviceStatus.source === 'ADB_KERNEL_BRIDGE'
+                ? 'ADB KERNEL BRIDGE'
+                : deviceStatus.source === 'PHONE_WIRELESS_SYNC'
+                ? 'WI-FI SENSOR SYNC'
+                : 'DIRECT WEB SENSORS'}
             </span>
           </div>
+
+          {/* Special Mobile Transmitter Pad (Only visible on the phone) */}
+          {deviceStatus.isMobileTransmitter && (
+            <div className="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-600/50 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-display font-bold text-emerald-400">
+                <span className="flex items-center gap-1.5">
+                  <Radio size={12} className="animate-pulse text-emerald-400" />
+                  STREAMING SENSORS TO LAPTOP DASHBOARD
+                </span>
+                <span className="text-[8px] font-mono bg-emerald-900/80 px-1.5 py-0.5 rounded text-emerald-200">
+                  LIVE OVER WI-FI
+                </span>
+              </div>
+              <p className="text-[10px] text-neutral-300">
+                Tap or swipe repeatedly inside the pad below to stream physical touch sampling rate and micro-jitter directly to the laptop:
+              </p>
+              <div
+                className="py-3 px-3 rounded bg-black/70 border border-dashed border-emerald-500/50 text-center font-mono text-[11px] font-bold text-emerald-300 select-none active:bg-emerald-900/40 active:border-emerald-400 transition-colors shadow-inner"
+              >
+                🎮 TAP / SWIPE HERE (REAL-TIME TOUCH TEST)
+              </div>
+            </div>
+          )}
 
           {/* Real Live Metrics Grid */}
           <div className="grid grid-cols-3 gap-2 font-mono text-[10px]">
@@ -133,8 +160,14 @@ export function LiveDeviceConnectBar() {
           </div>
 
           <div className="text-[8.5px] font-mono text-neutral-400 flex items-center justify-between pt-0.5">
-            <span>Real hardware readings feeding closed-loop intelligence</span>
-            <span className="text-emerald-400">LIVE SYNCED</span>
+            <span>
+              {deviceStatus.source === 'PHONE_WIRELESS_SYNC'
+                ? '🟢 Ingesting physical phone hardware readings over Wi-Fi'
+                : 'Real hardware readings feeding closed-loop intelligence'}
+            </span>
+            <span className="text-emerald-400 font-bold">
+              {deviceStatus.source === 'PHONE_WIRELESS_SYNC' ? 'PHONE LINKED' : 'LIVE SYNCED'}
+            </span>
           </div>
         </div>
       )}
