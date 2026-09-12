@@ -14,8 +14,32 @@
  */
 
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { exec, execSync } = require('child_process');
 
+function getAdbPath() {
+  try {
+    const cmd = process.platform === 'win32' ? 'where.exe adb' : 'which adb';
+    const found = execSync(cmd, { stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim().split(/[\r\n]+/)[0];
+    if (found && fs.existsSync(found)) return `"${found}"`;
+  } catch (e) {}
+
+  const candidates = [
+    path.join(process.env.LOCALAPPDATA || '', 'Android', 'Sdk', 'platform-tools', 'adb.exe'),
+    path.join(process.env.ANDROID_HOME || '', 'platform-tools', 'adb.exe'),
+    path.join(process.env.USERPROFILE || '', 'AppData', 'Local', 'Android', 'Sdk', 'platform-tools', 'adb.exe'),
+    'C:\\Users\\ashwi\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe'
+  ];
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) {
+      return `"${c}"`;
+    }
+  }
+  return 'adb';
+}
+
+const ADB = getAdbPath();
 const PORT = process.env.BRIDGE_PORT || 8765;
 
 let connectedDevice = null;
@@ -52,7 +76,7 @@ let lastTelemetry = {
 
 // Check for connected ADB device
 function detectDevice() {
-  exec('adb devices -l', (err, stdout) => {
+  exec(`${ADB} devices -l`, (err, stdout) => {
     if (err || !stdout) {
       connectedDevice = null;
       return;
@@ -87,7 +111,7 @@ function pollAdbTelemetry() {
   const serial = connectedDevice.serial;
 
   // 1. Battery & Temperature (dumpsys battery)
-  exec(`adb -s ${serial} shell dumpsys battery`, (err, stdout) => {
+  exec(`${ADB} -s ${serial} shell dumpsys battery`, (err, stdout) => {
     if (!err && stdout) {
       const levelMatch = stdout.match(/level:\s*(\d+)/);
       if (levelMatch) lastTelemetry.batteryLevel = parseInt(levelMatch[1], 10);
@@ -113,7 +137,7 @@ function pollAdbTelemetry() {
   });
 
   // 2. CPU & Memory usage (top -n 1)
-  exec(`adb -s ${serial} shell "top -n 1 -m 3"`, (err, stdout) => {
+  exec(`${ADB} -s ${serial} shell "top -n 1 -m 3"`, (err, stdout) => {
     if (!err && stdout) {
       const cpuMatch = stdout.match(/(\d+)%\s*cpu/i) || stdout.match(/User\s+(\d+)%/i);
       if (cpuMatch) {
@@ -123,7 +147,7 @@ function pollAdbTelemetry() {
   });
 
   // 3. RAM info (dumpsys meminfo)
-  exec(`adb -s ${serial} shell "dumpsys meminfo | grep 'Used RAM:'"`, (err, stdout) => {
+  exec(`${ADB} -s ${serial} shell "dumpsys meminfo | grep 'Used RAM:'"`, (err, stdout) => {
     if (!err && stdout) {
       const match = stdout.match(/Used RAM:\s*([\d,]+)\s*K/i);
       if (match) {
