@@ -103,20 +103,6 @@ npm run lint
 
 ---
 
-## 🏆 Hackathon Evaluation Guide (2-Minute Demo Flow)
-
-1. Open **VYRA Home** (`/`).
-2. Click **`RUN JUDGE DEMO`** (or **`START 30s PROOF`**):
-   - **0–5s**: *Normal Monitoring* (120 FPS baseline, 35.6°C).
-   - **5–10s**: *Thermal Rise Detected* (GPU saturation, thermal climb).
-   - **10–15s**: *Prediction Formed* (Risk: WATCH, 15s lead time).
-   - **15–20s**: *Preemptive Adaptation* (5% proactive GPU pacing).
-   - **20–25s**: *Verified Outcome* (Thermal stabilized, +6% stability saved).
-   - **25–30s**: *DNA Updated* (Session committed to local memory).
-3. Visit **`ADVANTAGE`** (`/advantage`) to see the side-by-side A/B counterfactual and the **Time-To-Intervention** contrast.
-4. Visit **`DNA`** (`/dna`) to inspect the player's 6 learned traits and the self-calibrating learning delta.
-
----
 
 ## 🔒 Technical Trust & On-Device Security
 
